@@ -1,0 +1,62 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-linux-x86_64:
+    name: Linux x86_64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo clippy -- -D warnings
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: l6426-linux-x86_64
+          path: target/release/l6426
+
+  build-linux-aarch64:
+    name: Linux aarch64 (static/musl)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
+      - run: |
+          mkdir -p ~/.local/bin
+          cat > ~/.local/bin/aarch64-linux-musl-gcc << 'EOF'
+          #!/bin/sh
+          exec aarch64-linux-gnu-gcc -static "$@"
+          EOF
+          chmod +x ~/.local/bin/aarch64-linux-musl-gcc
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - run: cargo build --release --target aarch64-unknown-linux-musl
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
+          RUSTFLAGS: "-C target-feature=+crt-static"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: l6426-linux-aarch64
+          path: target/aarch64-unknown-linux-musl/release/l6426
+
+  build-windows:
+    name: Windows x86_64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: l6426-windows-x86_64
+          path: target/release/l6426.exe
