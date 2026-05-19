@@ -2,9 +2,10 @@
 name = "l6426"
 version = "0.1.0"
 edition = "2021"
-description = "Farming Simulator .l64 file decoder — converts encrypted .l64 bytecode back to standard Luau/LuaJIT bytecode (.lua)"
+description = "Farming Simulator .l64 file decoder and decompiler — converts encrypted .l64 bytecode back to standard Luau/LuaJIT bytecode or readable Lua source code"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 walkdir = "2"
+lantern = { git = "https://github.com/Paint-a-Farm/lantern.git" }
