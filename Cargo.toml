@@ -1,0 +1,10 @@
+[package]
+name = "l6426"
+version = "0.1.0"
+edition = "2021"
+description = "Farming Simulator .l64 file decoder — converts encrypted .l64 bytecode back to standard Luau/LuaJIT bytecode (.lua)"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+walkdir = "2"
