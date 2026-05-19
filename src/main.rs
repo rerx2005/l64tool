@@ -9,8 +9,8 @@ use walkdir::WalkDir;
 
 use decode::decode_l64;
 
-/// Farming Simulator .l64 decoder — converts encrypted .l64 bytecode to
-/// standard Luau / LuaJIT bytecode (.lua).
+/// Farming Simulator .l64 decoder and decompiler — converts encrypted .l64
+/// bytecode to standard Luau / LuaJIT bytecode or readable Lua source code.
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Cli {
@@ -33,18 +33,29 @@ struct Cli {
     /// Overwrite existing output files
     #[arg(short = 'o', long = "overwrite")]
     overwrite: bool,
+
+    /// Decompile bytecode to readable Lua source code (Luau only)
+    #[arg(short = 's', long = "source-code")]
+    source_code: bool,
 }
 
 fn output_path(src: &Path) -> PathBuf {
     src.with_extension("lua")
 }
 
-fn process_file(path: &Path, overwrite: bool) -> Result<()> {
+fn process_file(path: &Path, overwrite: bool, decompile: bool) -> Result<()> {
     let raw = fs::read(path)
         .with_context(|| format!("failed to read {}", path.display()))?;
 
     let decoded = decode_l64(&raw)
         .with_context(|| format!("failed to decode {}", path.display()))?;
+
+    let output = if decompile {
+        let source = lantern::decompile_bytecode(&decoded, 1);
+        source.into_bytes()
+    } else {
+        decoded
+    };
 
     let out = output_path(path);
 
@@ -59,14 +70,15 @@ fn process_file(path: &Path, overwrite: bool) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
 
-    fs::write(&out, &decoded)
+    fs::write(&out, &output)
         .with_context(|| format!("failed to write {}", out.display()))?;
 
-    println!("{} -> {}", path.display(), out.display());
+    let mode = if decompile { "decompiled" } else { "decoded" };
+    println!("{} -> {} ({mode})", path.display(), out.display());
     Ok(())
 }
 
-fn process_dir(dir: &Path, recursive: bool, overwrite: bool) -> Result<()> {
+fn process_dir(dir: &Path, recursive: bool, overwrite: bool, decompile: bool) -> Result<()> {
     if !dir.is_dir() {
         bail!("{} is not a directory", dir.display());
     }
@@ -83,7 +95,7 @@ fn process_dir(dir: &Path, recursive: bool, overwrite: bool) -> Result<()> {
     for entry in walker.into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
         if path.is_file() && path.extension().is_some_and(|e| e == "l64") {
-            match process_file(path, overwrite) {
+            match process_file(path, overwrite, decompile) {
                 Ok(()) => count += 1,
                 Err(e) => {
                     eprintln!("error: {e:#}");
@@ -93,7 +105,8 @@ fn process_dir(dir: &Path, recursive: bool, overwrite: bool) -> Result<()> {
         }
     }
 
-    println!("\nDecoded {count} file(s), {errors} error(s).");
+    let mode = if decompile { "Decompiled" } else { "Decoded" };
+    println!("\n{mode} {count} file(s), {errors} error(s).");
     Ok(())
 }
 
@@ -107,16 +120,16 @@ fn main() -> Result<()> {
     }
 
     if let Some(ref path) = cli.file {
-        process_file(path, cli.overwrite)?;
+        process_file(path, cli.overwrite, cli.source_code)?;
     }
 
     if let Some(ref dir) = cli.dir {
-        process_dir(dir, cli.recursive, cli.overwrite)?;
+        process_dir(dir, cli.recursive, cli.overwrite, cli.source_code)?;
     }
 
     if let Some(ref files) = cli.batch {
         for path in files {
-            if let Err(e) = process_file(path, cli.overwrite) {
+            if let Err(e) = process_file(path, cli.overwrite, cli.source_code) {
                 eprintln!("error: {e:#}");
             }
         }
