@@ -35,18 +35,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-unknown-linux-musl
-      - name: Install aarch64-linux-musl cross-compiler
+      - name: Install cross
         run: |
-          wget -q https://musl.cc/aarch64-linux-musl-cross.tgz
-          tar xf aarch64-linux-musl-cross.tgz
-          echo "$PWD/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
-      - run: cargo build --release --target aarch64-unknown-linux-musl
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-musl-gcc
-          CC_aarch64_unknown_linux_musl: aarch64-linux-musl-gcc
-          CXX_aarch64_unknown_linux_musl: aarch64-linux-musl-g++
-          AR_aarch64_unknown_linux_musl: aarch64-linux-musl-ar
-          RUSTFLAGS: "-C target-feature=+crt-static"
+          curl -fsSL "https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-musl.tar.gz" | tar xz -C /tmp
+          sudo mv /tmp/cross /usr/local/bin/
+      - run: cross build --release --target aarch64-unknown-linux-musl
       - uses: actions/upload-artifact@v4
         with:
           name: l64tool-linux-aarch64
