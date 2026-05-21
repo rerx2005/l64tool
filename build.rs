@@ -2,38 +2,6 @@ use std::path::PathBuf;
 
 fn main() {
     build_luau_compiler();
-    build_cache_shim();
-}
-
-fn build_cache_shim() {
-    let target = std::env::var("TARGET").unwrap_or_default();
-    if target.contains("aarch64") && target.contains("musl") {
-        let out_dir = std::env::var("OUT_DIR").unwrap();
-        let shim_path = PathBuf::from(&out_dir).join("clear_cache_shim.c");
-        std::fs::write(
-            &shim_path,
-            r#"
-#if defined(__aarch64__)
-void __clear_cache(char *beg, char *end) {
-    const long line = 64;
-    char *p;
-    for (p = (char *)((long)beg & ~(line - 1)); p < end; p += line)
-        __asm__ volatile("dc cvau, %0" :: "r"(p) : "memory");
-    __asm__ volatile("dsb ish" ::: "memory");
-    for (p = (char *)((long)beg & ~(line - 1)); p < end; p += line)
-        __asm__ volatile("ic ivau, %0" :: "r"(p) : "memory");
-    __asm__ volatile("dsb ish\nisb" ::: "memory");
-}
-#endif
-"#,
-        )
-        .expect("failed to write cache shim");
-
-        cc::Build::new()
-            .file(&shim_path)
-            .warnings(false)
-            .compile("clear_cache_shim");
-    }
 }
 
 fn build_luau_compiler() {

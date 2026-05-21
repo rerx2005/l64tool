@@ -4,6 +4,7 @@ mod encoder;
 mod luajit_compile;
 mod luajit_dump;
 mod luau_compile;
+mod platform;
 
 use std::path::PathBuf;
 
