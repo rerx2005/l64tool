@@ -3,7 +3,7 @@
 Codificador e decodificador de arquivos `.l64` do Farming Simulator — compila, cifra, decifra e decompila scripts Luau/LuaJIT.
 
 Suporta os formatos:
-- **Luau** (FS23 / FS25 / FS26) — codificação, compilação, decodificação e decompilação (v6) / listing (v3)
+- **Luau** (FS23 / FS25 / FS26) — codificação, compilação, decodificação e decompilação (v3 via luauc64, v6 via lantern)
 - **LuaJIT** (FS19 / FS20 / FS22) — codificação, compilação, decodificação e disassembly de bytecode
 
 ### Versões suportadas
@@ -117,6 +117,7 @@ Os arquivos de saída são gerados no mesmo diretório do arquivo original.
 
 - [luau-lang/luau](https://github.com/luau-lang/luau) — compilador Luau (vendor)
 - [LuaJIT/LuaJIT](https://luajit.org/) — compilador LuaJIT (via mlua)
-- [Paint-a-Farm/lantern](https://github.com/Paint-a-Farm/lantern) — decompilador Luau
+- [Paint-a-Farm/lantern](https://github.com/Paint-a-Farm/lantern) — decompilador Luau v6
+- [snowbit64/l64decoder](https://github.com/snowbit64/l64decoder) — decompilador Luau v3 (luauc64)
 - [scfmod/fs-utils](https://github.com/scfmod/fs-utils) — ferramenta de referência em Rust
 - [chill1Penguin/l64decode](https://github.com/chill1Penguin/l64decode) — decoder em Python para FS19

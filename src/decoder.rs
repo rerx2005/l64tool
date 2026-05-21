@@ -58,18 +58,24 @@ fn decompile(
 
     match language {
         "luau" => {
-            if let Some(crate::cipher::BytecodeInfo::Luau { version }) = &detected {
-                if *version < 6 {
-                    eprintln!(
-                        "  warning: Luau bytecode v{version} detected — lantern only supports v6. Decompilation may fail or produce errors."
-                    );
+            let is_v3 = matches!(
+                &detected,
+                Some(crate::cipher::BytecodeInfo::Luau { version }) if *version <= 3
+            );
+            if is_v3 {
+                if verbose {
+                    eprintln!("  decompiling Luau v3 bytecode (luauc64)...");
                 }
+                let source = crate::luau_v3::decompile_v3(bytecode)
+                    .map_err(|e| anyhow::anyhow!("Luau v3 decompilation failed: {e}"))?;
+                Ok(source.into_bytes())
+            } else {
+                if verbose {
+                    eprintln!("  decompiling Luau bytecode (lantern)...");
+                }
+                let source = lantern::decompile_bytecode(bytecode, 1);
+                Ok(source.into_bytes())
             }
-            if verbose {
-                eprintln!("  decompiling Luau bytecode...");
-            }
-            let source = lantern::decompile_bytecode(bytecode, 1);
-            Ok(source.into_bytes())
         }
         "luajit" => {
             if verbose {

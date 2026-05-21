@@ -4,6 +4,7 @@ mod encoder;
 mod luajit_compile;
 mod luajit_dump;
 mod luau_compile;
+mod luau_v3;
 mod platform;
 
 use std::path::PathBuf;
@@ -150,6 +151,10 @@ LuaJIT (LuaJIT/LuaJIT)
 Lantern (Paint-a-Farm/lantern)
   License: MIT
   https://github.com/Paint-a-Farm/lantern
+
+luauc64 (snowbit64/l64decoder)
+  Luau v3 bytecode decompiler
+  https://github.com/snowbit64/l64decoder
 
 clap
   License: MIT / Apache 2.0
