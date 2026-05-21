@@ -15,48 +15,59 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo clippy -- -D warnings
       - run: cargo build --release
       - uses: actions/upload-artifact@v4
         with:
-          name: l6426-linux-x86_64
-          path: target/release/l6426
+          name: l64tool-linux-x86_64
+          path: target/release/l64tool
 
   build-linux-aarch64:
     name: Linux aarch64 (static/musl)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-unknown-linux-musl
-      - run: sudo apt-get update && sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
       - run: |
           mkdir -p ~/.local/bin
-          cat > ~/.local/bin/aarch64-linux-musl-gcc << 'EOF'
+          cat > ~/.local/bin/aarch64-linux-musl-gcc << 'SCRIPT'
           #!/bin/sh
           exec aarch64-linux-gnu-gcc -static "$@"
-          EOF
+          SCRIPT
           chmod +x ~/.local/bin/aarch64-linux-musl-gcc
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - run: cargo build --release --target aarch64-unknown-linux-musl
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
+          CC_aarch64_unknown_linux_musl: aarch64-linux-gnu-gcc
+          CXX_aarch64_unknown_linux_musl: aarch64-linux-gnu-g++
+          AR_aarch64_unknown_linux_musl: aarch64-linux-gnu-ar
           RUSTFLAGS: "-C target-feature=+crt-static"
       - uses: actions/upload-artifact@v4
         with:
-          name: l6426-linux-aarch64
-          path: target/aarch64-unknown-linux-musl/release/l6426
+          name: l64tool-linux-aarch64
+          path: target/aarch64-unknown-linux-musl/release/l64tool
 
   build-windows:
     name: Windows x86_64
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --release
       - uses: actions/upload-artifact@v4
         with:
-          name: l6426-windows-x86_64
-          path: target/release/l6426.exe
+          name: l64tool-windows-x86_64
+          path: target/release/l64tool.exe
