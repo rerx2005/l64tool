@@ -35,23 +35,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-unknown-linux-musl
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-      - run: |
-          mkdir -p ~/.local/bin
-          cat > ~/.local/bin/aarch64-linux-musl-gcc << 'SCRIPT'
-          #!/bin/sh
-          exec aarch64-linux-gnu-gcc -static "$@"
-          SCRIPT
-          chmod +x ~/.local/bin/aarch64-linux-musl-gcc
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install aarch64-linux-musl cross-compiler
+        run: |
+          wget -q https://musl.cc/aarch64-linux-musl-cross.tgz
+          tar xf aarch64-linux-musl-cross.tgz
+          echo "$PWD/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
       - run: cargo build --release --target aarch64-unknown-linux-musl
         env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
-          CC_aarch64_unknown_linux_musl: aarch64-linux-gnu-gcc
-          CXX_aarch64_unknown_linux_musl: aarch64-linux-gnu-g++
-          AR_aarch64_unknown_linux_musl: aarch64-linux-gnu-ar
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-musl-gcc
+          CC_aarch64_unknown_linux_musl: aarch64-linux-musl-gcc
+          CXX_aarch64_unknown_linux_musl: aarch64-linux-musl-g++
+          AR_aarch64_unknown_linux_musl: aarch64-linux-musl-ar
           RUSTFLAGS: "-C target-feature=+crt-static"
       - uses: actions/upload-artifact@v4
         with:
