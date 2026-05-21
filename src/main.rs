@@ -12,7 +12,7 @@ use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 
 use cipher::Target;
-use decoder::DecoderOpts;
+use decoder::{DecoderOpts, TargetSourceCode};
 use encoder::EncoderOpts;
 
 /// Farming Simulator .l64 encoder/decoder — compile, encrypt, decrypt,
@@ -115,6 +115,10 @@ struct DecoderArgs {
     #[arg(short = 's', long = "source-code")]
     source_code: bool,
 
+    /// Force bytecode language for decompilation (auto-detected by default)
+    #[arg(short = 't', long = "target-source-code", value_parser = parse_target_source_code)]
+    target_source_code: Option<TargetSourceCode>,
+
     /// Verbose output
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
@@ -122,6 +126,10 @@ struct DecoderArgs {
     /// Overwrite existing output files
     #[arg(short = 'O', long = "overwrite")]
     overwrite: bool,
+}
+
+fn parse_target_source_code(s: &str) -> std::result::Result<TargetSourceCode, String> {
+    s.parse()
 }
 
 // ── Licenses ────────────────────────────────────────────────────────
@@ -225,6 +233,7 @@ fn run_decoder(args: DecoderArgs) -> Result<()> {
         source_code: args.source_code,
         verbose: args.verbose,
         overwrite: args.overwrite,
+        target_source_code: args.target_source_code,
     };
 
     if let Some(ref path) = args.file {

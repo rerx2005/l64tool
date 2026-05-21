@@ -7,35 +7,78 @@ use walkdir::WalkDir;
 use crate::cipher::{detect_bytecode_format, decode_l64};
 use crate::luajit_dump;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetSourceCode {
+    Luajit,
+    Luau,
+}
+
+impl std::str::FromStr for TargetSourceCode {
+    type Err = String;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "luajit" => Ok(TargetSourceCode::Luajit),
+            "luau" => Ok(TargetSourceCode::Luau),
+            _ => Err(format!("unknown target '{}' (expected: luajit, luau)", s)),
+        }
+    }
+}
+
 pub struct DecoderOpts {
     pub source_code: bool,
     pub verbose: bool,
     pub overwrite: bool,
+    pub target_source_code: Option<TargetSourceCode>,
 }
 
 fn output_path(src: &Path) -> PathBuf {
     src.with_extension("lua")
 }
 
-fn decompile(bytecode: &[u8], verbose: bool) -> Result<Vec<u8>> {
-    match detect_bytecode_format(bytecode) {
-        Some("luau") => {
+fn decompile(
+    bytecode: &[u8],
+    verbose: bool,
+    target_override: Option<TargetSourceCode>,
+) -> Result<Vec<u8>> {
+    let detected = detect_bytecode_format(bytecode);
+    let language = match target_override {
+        Some(TargetSourceCode::Luau) => "luau",
+        Some(TargetSourceCode::Luajit) => "luajit",
+        None => match &detected {
+            Some(info) => info.language(),
+            None => bail!("Unknown bytecode format — cannot decompile. Use -t to specify."),
+        },
+    };
+
+    if verbose {
+        if let Some(ref info) = detected {
+            eprintln!("  detected bytecode: {info}");
+        }
+    }
+
+    match language {
+        "luau" => {
+            if let Some(crate::cipher::BytecodeInfo::Luau { version }) = &detected {
+                if *version < 6 {
+                    eprintln!(
+                        "  warning: Luau bytecode v{version} detected — lantern only supports v6. Decompilation may fail or produce errors."
+                    );
+                }
+            }
             if verbose {
                 eprintln!("  decompiling Luau bytecode...");
             }
             let source = lantern::decompile_bytecode(bytecode, 1);
             Ok(source.into_bytes())
         }
-        Some("luajit") => {
+        "luajit" => {
             if verbose {
                 eprintln!("  disassembling LuaJIT bytecode...");
             }
             let listing = luajit_dump::disassemble_luajit(bytecode)?;
             Ok(listing.into_bytes())
         }
-        _ => {
-            bail!("Unknown bytecode format — cannot decompile");
-        }
+        _ => bail!("Unknown bytecode format — cannot decompile"),
     }
 }
 
@@ -51,7 +94,7 @@ fn process_file(
         .with_context(|| format!("failed to decode {}", path.display()))?;
 
     let output = if opts.source_code {
-        decompile(&decoded, opts.verbose)?
+        decompile(&decoded, opts.verbose, opts.target_source_code)?
     } else {
         decoded
     };
@@ -82,12 +125,12 @@ fn process_file(
 
     if opts.verbose {
         let fmt_name = match detect_bytecode_format(&output) {
-            Some(f) => f,
+            Some(info) => info.to_string(),
             None => {
                 if opts.source_code {
-                    "source"
+                    "source".to_string()
                 } else {
-                    "unknown"
+                    "unknown".to_string()
                 }
             }
         };

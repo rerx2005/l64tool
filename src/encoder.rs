@@ -23,10 +23,11 @@ fn output_path(src: &Path) -> PathBuf {
 fn warn_bytecode_mismatch(data: &[u8], target: Target, path: &Path) {
     if let Some(detected) = detect_bytecode_format(data) {
         let expected = if target.is_luajit() { "luajit" } else { "luau" };
-        if detected != expected {
+        if detected.language() != expected {
             eprintln!(
-                "warning: {} appears to contain {detected} bytecode, but target is {target} (expects {expected})",
-                path.display()
+                "warning: {} appears to contain {} bytecode, but target is {target} (expects {expected})",
+                path.display(),
+                detected.language()
             );
         }
     } else {

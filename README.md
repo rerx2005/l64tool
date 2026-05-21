@@ -3,8 +3,19 @@
 Codificador e decodificador de arquivos `.l64` do Farming Simulator — compila, cifra, decifra e decompila scripts Luau/LuaJIT.
 
 Suporta os formatos:
-- **Luau** (FS25) — codificação, compilação, decodificação e decompilação
-- **LuaJIT** (FS17 / FS19 / FS22) — codificação, compilação, decodificação e disassembly de bytecode
+- **Luau** (FS23 / FS25 / FS26) — codificação, compilação, decodificação e decompilação (v6) / listing (v3)
+- **LuaJIT** (FS19 / FS20 / FS22) — codificação, compilação, decodificação e disassembly de bytecode
+
+### Versões suportadas
+
+| Target | Engine | Bytecode |
+|--------|--------|----------|
+| `fs19` | LuaJIT | v2 |
+| `fs20` | LuaJIT | v2 |
+| `fs22` | LuaJIT | v2 |
+| `fs23` | Luau   | v3 |
+| `fs25` | Luau   | v3 |
+| `fs26` | Luau   | v6 |
 
 ## Build
 
@@ -51,7 +62,7 @@ l64tool encoder [OPTIONS] --target <TARGET>
 | `-c, --compile-code` | Compila código-fonte para bytecode antes de codificar |
 | `-p, --preserve-symbols` | Preserva nomes de variáveis e funções no bytecode |
 | `-v, --verbose` | Saída detalhada |
-| `-t, --target <TARGET>` | Versão alvo: `fs19`, `fs22`, `fs25` |
+| `-t, --target <TARGET>` | Versão alvo: `fs19`, `fs20`, `fs22`, `fs23`, `fs25`, `fs26` |
 | `-O, --overwrite` | Sobrescreve arquivos existentes |
 
 ### Decoder
@@ -68,6 +79,7 @@ l64tool decoder [OPTIONS]
 | `-r, --recursive` | Percorre subdiretórios (com `--dir`) |
 | `-o, --output <PATH>` | Caminho de saída |
 | `-s, --source-code` | Decompila/disassembla o bytecode para código legível |
+| `-t, --target-source-code <TARGET>` | Força a linguagem para decompilação: `luajit`, `luau` (auto-detectado por padrão) |
 | `-v, --verbose` | Saída detalhada |
 | `-O, --overwrite` | Sobrescreve arquivos existentes |
 
@@ -86,8 +98,11 @@ l64tool encoder -d scripts/ -r -c -t fs25 -O
 # Decodificar arquivo .l64 para bytecode
 l64tool decoder -f scripts/events.l64
 
-# Decodificar e decompilar para código-fonte Luau
+# Decodificar e decompilar para código-fonte Luau (auto-detecta a linguagem)
 l64tool decoder -f scripts/events.l64 -s
+
+# Forçar decompilação como Luau
+l64tool decoder -f scripts/events.l64 -s -t luau
 
 # Decodificar diretório inteiro com decompilação
 l64tool decoder -d scripts/ -r -s -O
