@@ -1,19 +1,94 @@
-mod decode;
+mod cipher;
+mod decoder;
+mod encoder;
+mod luajit_compile;
+mod luajit_dump;
+mod luau_compile;
 
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use anyhow::{Context, Result, bail};
-use clap::Parser;
-use walkdir::WalkDir;
+use anyhow::{Result, bail};
+use clap::{Parser, Subcommand};
 
-use decode::decode_l64;
+use cipher::Target;
+use decoder::DecoderOpts;
+use encoder::EncoderOpts;
 
-/// Farming Simulator .l64 decoder and decompiler — converts encrypted .l64
-/// bytecode to standard Luau / LuaJIT bytecode or readable Lua source code.
+/// Farming Simulator .l64 encoder/decoder — compile, encrypt, decrypt,
+/// and decompile Luau / LuaJIT scripts.
 #[derive(Parser, Debug)]
-#[command(version, about)]
+#[command(name = "l64tool", version, about)]
 struct Cli {
+    /// Show third-party licenses
+    #[arg(short = 'l', long = "licenses")]
+    licenses: bool,
+
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Encode Lua source or bytecode into encrypted .l64 files
+    Encoder(EncoderArgs),
+    /// Decode encrypted .l64 files into bytecode or Lua source
+    Decoder(DecoderArgs),
+}
+
+// ── Encoder ─────────────────────────────────────────────────────────
+
+#[derive(Parser, Debug)]
+struct EncoderArgs {
+    /// Encode a single file
+    #[arg(short = 'f', long = "file")]
+    file: Option<PathBuf>,
+
+    /// Encode all files in a directory
+    #[arg(short = 'd', long = "dir")]
+    dir: Option<PathBuf>,
+
+    /// Encode multiple files (space-separated)
+    #[arg(short = 'b', long = "batch", num_args = 1..)]
+    batch: Option<Vec<PathBuf>>,
+
+    /// Recurse into subdirectories (with --dir)
+    #[arg(short = 'r', long = "recursive")]
+    recursive: bool,
+
+    /// Output path (single file only)
+    #[arg(short = 'o', long = "output")]
+    output: Option<PathBuf>,
+
+    /// Compile source code to bytecode before encoding
+    /// (without this flag, input is expected to already be bytecode)
+    #[arg(short = 'c', long = "compile-code")]
+    compile_code: bool,
+
+    /// Preserve debug symbols (variable names, line info)
+    #[arg(short = 'p', long = "preserve-symbols")]
+    preserve_symbols: bool,
+
+    /// Verbose output
+    #[arg(short = 'v', long = "verbose")]
+    verbose: bool,
+
+    /// Target game version
+    #[arg(short = 't', long = "target", value_parser = parse_target)]
+    target: Target,
+
+    /// Overwrite existing output files
+    #[arg(short = 'O', long = "overwrite")]
+    overwrite: bool,
+}
+
+fn parse_target(s: &str) -> std::result::Result<Target, String> {
+    s.parse()
+}
+
+// ── Decoder ─────────────────────────────────────────────────────────
+
+#[derive(Parser, Debug)]
+struct DecoderArgs {
     /// Decode a single .l64 file
     #[arg(short = 'f', long = "file")]
     file: Option<PathBuf>,
@@ -22,117 +97,145 @@ struct Cli {
     #[arg(short = 'd', long = "dir")]
     dir: Option<PathBuf>,
 
-    /// Decode multiple .l64 files (space-separated list)
+    /// Decode multiple .l64 files (space-separated)
     #[arg(short = 'b', long = "batch", num_args = 1..)]
     batch: Option<Vec<PathBuf>>,
 
-    /// Recurse into subdirectories (used with --dir)
+    /// Recurse into subdirectories (with --dir)
     #[arg(short = 'r', long = "recursive")]
     recursive: bool,
 
-    /// Overwrite existing output files
-    #[arg(short = 'o', long = "overwrite")]
-    overwrite: bool,
+    /// Output path
+    #[arg(short = 'o', long = "output")]
+    output: Option<PathBuf>,
 
-    /// Decompile bytecode to readable Lua source code (Luau only)
+    /// Decompile bytecode to readable Lua source code
+    /// (without this flag, output is raw bytecode)
     #[arg(short = 's', long = "source-code")]
     source_code: bool,
+
+    /// Verbose output
+    #[arg(short = 'v', long = "verbose")]
+    verbose: bool,
+
+    /// Overwrite existing output files
+    #[arg(short = 'O', long = "overwrite")]
+    overwrite: bool,
 }
 
-fn output_path(src: &Path) -> PathBuf {
-    src.with_extension("lua")
+// ── Licenses ────────────────────────────────────────────────────────
+
+fn print_licenses() {
+    println!(
+        r#"l64tool — Third-Party Licenses
+==============================
+
+Luau (luau-lang/luau)
+  License: MIT
+  https://github.com/luau-lang/luau/blob/master/LICENSE.txt
+
+LuaJIT (LuaJIT/LuaJIT)
+  License: MIT
+  https://luajit.org/luajit.html
+
+Lantern (Paint-a-Farm/lantern)
+  License: MIT
+  https://github.com/Paint-a-Farm/lantern
+
+clap
+  License: MIT / Apache 2.0
+  https://github.com/clap-rs/clap
+
+anyhow
+  License: MIT / Apache 2.0
+  https://github.com/dtolnay/anyhow
+
+walkdir
+  License: MIT / Unlicense
+  https://github.com/BurntSushi/walkdir
+
+mlua
+  License: MIT
+  https://github.com/mlua-rs/mlua
+"#
+    );
 }
 
-fn process_file(path: &Path, overwrite: bool, decompile: bool) -> Result<()> {
-    let raw = fs::read(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
-
-    let decoded = decode_l64(&raw)
-        .with_context(|| format!("failed to decode {}", path.display()))?;
-
-    let output = if decompile {
-        let source = lantern::decompile_bytecode(&decoded, 1);
-        source.into_bytes()
-    } else {
-        decoded
-    };
-
-    let out = output_path(path);
-
-    if out.exists() && !overwrite {
-        bail!(
-            "{} already exists (use -o/--overwrite to replace)",
-            out.display()
-        );
-    }
-
-    if let Some(parent) = out.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    fs::write(&out, &output)
-        .with_context(|| format!("failed to write {}", out.display()))?;
-
-    let mode = if decompile { "decompiled" } else { "decoded" };
-    println!("{} -> {} ({mode})", path.display(), out.display());
-    Ok(())
-}
-
-fn process_dir(dir: &Path, recursive: bool, overwrite: bool, decompile: bool) -> Result<()> {
-    if !dir.is_dir() {
-        bail!("{} is not a directory", dir.display());
-    }
-
-    let walker = if recursive {
-        WalkDir::new(dir)
-    } else {
-        WalkDir::new(dir).max_depth(1)
-    };
-
-    let mut count = 0u64;
-    let mut errors = 0u64;
-
-    for entry in walker.into_iter().filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if path.is_file() && path.extension().is_some_and(|e| e == "l64") {
-            match process_file(path, overwrite, decompile) {
-                Ok(()) => count += 1,
-                Err(e) => {
-                    eprintln!("error: {e:#}");
-                    errors += 1;
-                }
-            }
-        }
-    }
-
-    let mode = if decompile { "Decompiled" } else { "Decoded" };
-    println!("\n{mode} {count} file(s), {errors} error(s).");
-    Ok(())
-}
+// ── Main ────────────────────────────────────────────────────────────
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let has_input = cli.file.is_some() || cli.dir.is_some() || cli.batch.is_some();
+    if cli.licenses {
+        print_licenses();
+        return Ok(());
+    }
 
+    let Some(command) = cli.command else {
+        bail!("No command specified. Use 'encoder' or 'decoder'. See --help.");
+    };
+
+    match command {
+        Command::Encoder(args) => run_encoder(args),
+        Command::Decoder(args) => run_decoder(args),
+    }
+}
+
+fn run_encoder(args: EncoderArgs) -> Result<()> {
+    let has_input = args.file.is_some() || args.dir.is_some() || args.batch.is_some();
+    if !has_input {
+        bail!("No input specified. Use -f, -d, or -b to provide files.");
+    }
+
+    if args.output.is_some() && (args.dir.is_some() || args.batch.is_some()) {
+        bail!("-o/--output is only available for single file mode (-f).");
+    }
+
+    let opts = EncoderOpts {
+        compile_code: args.compile_code,
+        preserve_symbols: args.preserve_symbols,
+        verbose: args.verbose,
+        target: args.target,
+        overwrite: args.overwrite,
+    };
+
+    if let Some(ref path) = args.file {
+        encoder::encode_file(path, args.output.as_deref(), &opts)?;
+    }
+
+    if let Some(ref dir) = args.dir {
+        encoder::encode_dir_with_depth(dir, args.recursive, &opts)?;
+    }
+
+    if let Some(ref files) = args.batch {
+        encoder::encode_batch(files, &opts)?;
+    }
+
+    Ok(())
+}
+
+fn run_decoder(args: DecoderArgs) -> Result<()> {
+    let has_input = args.file.is_some() || args.dir.is_some() || args.batch.is_some();
     if !has_input {
         bail!("No input specified. Use -f, -d, or -b to provide .l64 files.");
     }
 
-    if let Some(ref path) = cli.file {
-        process_file(path, cli.overwrite, cli.source_code)?;
+    let opts = DecoderOpts {
+        source_code: args.source_code,
+        verbose: args.verbose,
+        overwrite: args.overwrite,
+    };
+
+    if let Some(ref path) = args.file {
+        decoder::decode_file(path, args.output.as_deref(), &opts)?;
     }
 
-    if let Some(ref dir) = cli.dir {
-        process_dir(dir, cli.recursive, cli.overwrite, cli.source_code)?;
+    if let Some(ref dir) = args.dir {
+        decoder::decode_dir(dir, args.recursive, &opts)?;
     }
 
-    if let Some(ref files) = cli.batch {
-        for path in files {
-            if let Err(e) = process_file(path, cli.overwrite, cli.source_code) {
-                eprintln!("error: {e:#}");
-            }
-        }
+    if let Some(ref files) = args.batch {
+        decoder::decode_batch(files, &opts)?;
     }
 
     Ok(())

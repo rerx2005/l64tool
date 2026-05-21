@@ -1,57 +1,107 @@
-# l6426
+# l64tool
 
-Decifrador e decompilador de arquivos `.l64` do Farming Simulator para bytecode ou código-fonte Lua (`.lua`).
+Codificador e decodificador de arquivos `.l64` do Farming Simulator — compila, cifra, decifra e decompila scripts Luau/LuaJIT.
 
 Suporta os formatos:
-- **Luau** (FS25) — padrão e DLC (decodificação + decompilação)
-- **LuaJIT** (FS17 / FS19 / FS22) — versões 3 e 4 (somente decodificação)
+- **Luau** (FS25) — codificação, compilação, decodificação e decompilação
+- **LuaJIT** (FS17 / FS19 / FS22) — codificação, compilação, decodificação e disassembly de bytecode
 
 ## Build
 
 ```sh
+git clone --recursive https://github.com/rerx2005/l64tool.git
+cd l64tool
 cargo build --release
 ```
 
 ## Uso
 
 ```
-l6426 [OPTIONS]
+l64tool [OPTIONS] [COMMAND]
 ```
 
-### Flags
+### Comandos
+
+| Comando | Descrição |
+|---------|-----------|
+| `encoder` | Codifica arquivos Lua/bytecode em `.l64` cifrados |
+| `decoder` | Decodifica arquivos `.l64` em bytecode ou código-fonte |
+
+### Opções Globais
+
+| Flag | Descrição |
+|------|-----------|
+| `-l, --licenses` | Mostra licenças de terceiros |
+| `-h, --help` | Mostra ajuda |
+| `-V, --version` | Mostra versão |
+
+### Encoder
+
+```
+l64tool encoder [OPTIONS] --target <TARGET>
+```
+
+| Flag | Descrição |
+|------|-----------|
+| `-f, --file <FILE>` | Codifica um único arquivo |
+| `-d, --dir <DIR>` | Codifica todos os arquivos de um diretório |
+| `-b, --batch <FILES...>` | Codifica múltiplos arquivos |
+| `-r, --recursive` | Percorre subdiretórios (com `--dir`) |
+| `-o, --output <PATH>` | Caminho de saída (somente para arquivo único) |
+| `-c, --compile-code` | Compila código-fonte para bytecode antes de codificar |
+| `-p, --preserve-symbols` | Preserva nomes de variáveis e funções no bytecode |
+| `-v, --verbose` | Saída detalhada |
+| `-t, --target <TARGET>` | Versão alvo: `fs19`, `fs22`, `fs25` |
+| `-O, --overwrite` | Sobrescreve arquivos existentes |
+
+### Decoder
+
+```
+l64tool decoder [OPTIONS]
+```
 
 | Flag | Descrição |
 |------|-----------|
 | `-f, --file <FILE>` | Decodifica um único arquivo `.l64` |
-| `-d, --dir <DIR>` | Decodifica todos os `.l64` em um diretório |
+| `-d, --dir <DIR>` | Decodifica todos os `.l64` de um diretório |
 | `-b, --batch <FILES...>` | Decodifica múltiplos arquivos `.l64` |
-| `-r, --recursive` | Percorre subdiretórios (usado com `--dir`) |
-| `-o, --overwrite` | Sobrescreve arquivos de saída existentes |
-| `-s, --source-code` | Decompila o bytecode para código-fonte Lua legível (Luau) |
+| `-r, --recursive` | Percorre subdiretórios (com `--dir`) |
+| `-o, --output <PATH>` | Caminho de saída |
+| `-s, --source-code` | Decompila/disassembla o bytecode para código legível |
+| `-v, --verbose` | Saída detalhada |
+| `-O, --overwrite` | Sobrescreve arquivos existentes |
 
 ### Exemplos
 
 ```sh
-# Decodificar arquivo único (gera bytecode)
-l6426 -f scripts/events.l64
+# Compilar e codificar um script Lua para FS25
+l64tool encoder -f myscript.lua -c -t fs25
 
-# Decompilar para código-fonte legível
-l6426 -f scripts/events.l64 -s
+# Codificar bytecode para FS22 (sem compilação)
+l64tool encoder -f myscript.luac -t fs22
 
-# Decompilar diretório inteiro, recursivo
-l6426 -d scripts -r -o -s
+# Codificar diretório recursivamente para FS25
+l64tool encoder -d scripts/ -r -c -t fs25 -O
 
-# Batch de arquivos específicos
-l6426 -b scripts/events.l64 scripts/game.l64 -s
+# Decodificar arquivo .l64 para bytecode
+l64tool decoder -f scripts/events.l64
 
-# Somente decodificar (bytecode sem decompilação)
-l6426 -d scripts -r -o
+# Decodificar e decompilar para código-fonte Luau
+l64tool decoder -f scripts/events.l64 -s
+
+# Decodificar diretório inteiro com decompilação
+l64tool decoder -d scripts/ -r -s -O
+
+# Batch de arquivos
+l64tool decoder -b scripts/events.l64 scripts/game.l64 -s
 ```
 
-Os arquivos `.lua` são gerados no mesmo diretório do `.l64` original.
+Os arquivos de saída são gerados no mesmo diretório do arquivo original.
 
 ## Referências
 
-- [Paint-a-Farm/lantern](https://github.com/Paint-a-Farm/lantern) — decompilador Luau usado internamente
+- [luau-lang/luau](https://github.com/luau-lang/luau) — compilador Luau (vendor)
+- [LuaJIT/LuaJIT](https://luajit.org/) — compilador LuaJIT (via mlua)
+- [Paint-a-Farm/lantern](https://github.com/Paint-a-Farm/lantern) — decompilador Luau
 - [scfmod/fs-utils](https://github.com/scfmod/fs-utils) — ferramenta de referência em Rust
 - [chill1Penguin/l64decode](https://github.com/chill1Penguin/l64decode) — decoder em Python para FS19
