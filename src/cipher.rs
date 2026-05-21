@@ -45,16 +45,22 @@ const LUAJIT_TABLE_V4: ByteshiftTable = ByteshiftTable {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
     Fs19,
+    Fs20,
     Fs22,
+    Fs23,
     Fs25,
+    Fs26,
 }
 
 impl std::fmt::Display for Target {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Target::Fs19 => write!(f, "fs19"),
+            Target::Fs20 => write!(f, "fs20"),
             Target::Fs22 => write!(f, "fs22"),
+            Target::Fs23 => write!(f, "fs23"),
             Target::Fs25 => write!(f, "fs25"),
+            Target::Fs26 => write!(f, "fs26"),
         }
     }
 }
@@ -64,16 +70,22 @@ impl std::str::FromStr for Target {
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "fs19" => Ok(Target::Fs19),
+            "fs20" => Ok(Target::Fs20),
             "fs22" => Ok(Target::Fs22),
+            "fs23" => Ok(Target::Fs23),
             "fs25" => Ok(Target::Fs25),
-            _ => Err(format!("unknown target '{}' (expected: fs19, fs22, fs25)", s)),
+            "fs26" => Ok(Target::Fs26),
+            _ => Err(format!(
+                "unknown target '{}' (expected: fs19, fs20, fs22, fs23, fs25, fs26)",
+                s
+            )),
         }
     }
 }
 
 impl Target {
     pub fn is_luajit(self) -> bool {
-        matches!(self, Target::Fs19 | Target::Fs22)
+        matches!(self, Target::Fs19 | Target::Fs20 | Target::Fs22)
     }
 }
 
@@ -119,16 +131,41 @@ pub fn detect_format(buf: &[u8]) -> Option<Format> {
     None
 }
 
-/// Detect whether raw bytecode is Luau or LuaJIT (unencrypted).
-pub fn detect_bytecode_format(buf: &[u8]) -> Option<&'static str> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BytecodeInfo {
+    LuaJIT,
+    Luau { version: u8 },
+}
+
+impl std::fmt::Display for BytecodeInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BytecodeInfo::LuaJIT => write!(f, "luajit"),
+            BytecodeInfo::Luau { version } => write!(f, "luau-v{version}"),
+        }
+    }
+}
+
+impl BytecodeInfo {
+    pub fn language(&self) -> &'static str {
+        match self {
+            BytecodeInfo::LuaJIT => "luajit",
+            BytecodeInfo::Luau { .. } => "luau",
+        }
+    }
+}
+
+/// Detect whether raw bytecode is Luau or LuaJIT (unencrypted),
+/// including the Luau bytecode version (e.g. v3, v6).
+pub fn detect_bytecode_format(buf: &[u8]) -> Option<BytecodeInfo> {
     if buf.len() < 4 {
         return None;
     }
     if buf[..3] == [0x1B, 0x4C, 0x4A] {
-        return Some("luajit");
+        return Some(BytecodeInfo::LuaJIT);
     }
     if matches!(buf[0], 0x03..=0x06) {
-        return Some("luau");
+        return Some(BytecodeInfo::Luau { version: buf[0] });
     }
     None
 }
@@ -188,8 +225,8 @@ const LUAU_STD_MARKER: u8 = 0x04;
 
 pub fn encode_l64(bytecode: &[u8], target: Target) -> Result<Vec<u8>> {
     match target {
-        Target::Fs25 => encode_luau(bytecode),
-        Target::Fs19 => encode_luajit(bytecode, 3),
+        Target::Fs23 | Target::Fs25 | Target::Fs26 => encode_luau(bytecode),
+        Target::Fs19 | Target::Fs20 => encode_luajit(bytecode, 3),
         Target::Fs22 => encode_luajit(bytecode, 4),
     }
 }

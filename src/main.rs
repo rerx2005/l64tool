@@ -4,6 +4,7 @@ mod encoder;
 mod luajit_compile;
 mod luajit_dump;
 mod luau_compile;
+mod luau_v3;
 mod platform;
 
 use std::path::PathBuf;
@@ -12,7 +13,7 @@ use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 
 use cipher::Target;
-use decoder::DecoderOpts;
+use decoder::{DecoderOpts, TargetSourceCode};
 use encoder::EncoderOpts;
 
 /// Farming Simulator .l64 encoder/decoder — compile, encrypt, decrypt,
@@ -115,6 +116,10 @@ struct DecoderArgs {
     #[arg(short = 's', long = "source-code")]
     source_code: bool,
 
+    /// Force bytecode language for decompilation (auto-detected by default)
+    #[arg(short = 't', long = "target-source-code", value_parser = parse_target_source_code)]
+    target_source_code: Option<TargetSourceCode>,
+
     /// Verbose output
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
@@ -122,6 +127,10 @@ struct DecoderArgs {
     /// Overwrite existing output files
     #[arg(short = 'O', long = "overwrite")]
     overwrite: bool,
+}
+
+fn parse_target_source_code(s: &str) -> std::result::Result<TargetSourceCode, String> {
+    s.parse()
 }
 
 // ── Licenses ────────────────────────────────────────────────────────
@@ -142,6 +151,10 @@ LuaJIT (LuaJIT/LuaJIT)
 Lantern (Paint-a-Farm/lantern)
   License: MIT
   https://github.com/Paint-a-Farm/lantern
+
+luauc64 (snowbit64/l64decoder)
+  Luau v3 bytecode decompiler
+  https://github.com/snowbit64/l64decoder
 
 clap
   License: MIT / Apache 2.0
@@ -225,6 +238,7 @@ fn run_decoder(args: DecoderArgs) -> Result<()> {
         source_code: args.source_code,
         verbose: args.verbose,
         overwrite: args.overwrite,
+        target_source_code: args.target_source_code,
     };
 
     if let Some(ref path) = args.file {
